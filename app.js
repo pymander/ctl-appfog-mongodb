@@ -32,21 +32,21 @@ passport.use('local-signin', new LocalStrategy(
     delete req.session.error;
 
     funct.localAuth(username, password)
-    .then(function (user) {
-      if (user) {
-        console.log("LOGGED IN AS: " + user.username);
-        req.session.success = 'You are successfully logged in ' + user.username + '!';
-        done(null, user);
-      }
-      if (!user) {
-        console.log("COULD NOT LOG IN");
-        req.session.error = 'That username and password combination is not valid!';
-        done(null, user);
-      }
-    })
-    .fail(function (err){
-      console.log(err.body);
-    });
+      .then(function (user) {
+        if (user) {
+          console.log("LOGGED IN AS: " + user.username);
+          req.session.success = 'You are successfully logged in ' + user.username + '!';
+          done(null, user);
+        }
+        if (!user) {
+          console.log("COULD NOT LOG IN");
+          req.session.error = 'That username and password combination is not valid!';
+          done(null, user);
+        }
+      })
+      .fail(function (err){
+        console.log(err.body);
+      });
   }
 ));
 

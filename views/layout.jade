@@ -6,12 +6,3 @@ html
   body
     block content
 
-    if session.error
-      p(class='error') #{session.error}
-
-    if session.notice
-      p(class='notice') #{session.notice}
-
-    if session.success
-      p(class='success') #{session.success}
-

@@ -5,40 +5,41 @@ var bcrypt = require('bcryptjs'),
     Q = require('q'),
     config = require('./config.js');
 
-// Orchestrate connection
-var oio = require('orchestrate');
-var db = oio(config.orchestrate_token, process.env.npm_package_config_datacenter);
+// MongoDB connection information
+var mongodbUrl = 'mongodb://' + config.mongodbHost + ':27017/users';
+var MongoClient = require('mongodb').MongoClient
 
 // Register a new user, failing if that user already exists.
 exports.localReg = function (username, password) {
   var deferred = Q.defer();
-  var hash = bcrypt.hashSync(password, 8);
-  var user = {
-    "username": username,
-    "password": hash,
-    "note": "Created by CenturyLink Cloud test application"
-  }
-
-  console.log("CHECKING ON: " + username);
   
-  // Check if username is already present in Orchestrate
-  db.get('local-users', username)
-    .then(function (result){ //case in which user already exists in db
-      console.log('USERNAME ALREADY EXISTS');
-      deferred.resolve(false); //username already exists
-    })
-    .fail(function (err) {
-      // User doesn't exist. Register the user.
-      console.log("USERNAME AVAILABLE");
-      db.put('local-users', username, user)
-        .then(function () {
-          deferred.resolve(user);
-        })
-        .fail(function (err) {
-          console.log("PUT FAIL:" + err.body.message);
-          deferred.reject(new Error(err));
-        });
-    });
+  MongoClient.connect(mongodbUrl, function (err, db) {
+    var collection = db.collection('localUsers');
+
+    collection.findOne({'username' : username})
+      .then(function (result) {
+        if (null != result) {
+          console.log("USERNAME ALREADY EXISTS:", result.username);
+          deferred.resolve(false); // username exists
+        }
+        else  {
+          var hash = bcrypt.hashSync(password, 8);
+          var user = {
+            "username": username,
+            "password": hash,
+            "note": "Created by CenturyLink Cloud test application"
+          }
+
+          console.log("CREATING USER:", username);
+        
+          collection.insert(user)
+            .then(function () {
+              db.close();
+              deferred.resolve(user);
+            });
+        }
+      });
+  });
 
   return deferred.promise;
 };
@@ -48,29 +49,34 @@ exports.localReg = function (username, password) {
 exports.localAuth = function (username, password) {
   var deferred = Q.defer();
 
-  db.get('local-users', username)
-    .then(function (result){
-      var hash = result.body.password;
+  MongoClient.connect(mongodbUrl, function (err, db) {
+    var collection = db.collection('localUsers');
 
-      console.log("FOUND USER: " + username);
+    collection.findOne({'username' : username})
+      .then(function (result) {
+        if (null == result) {
+          console.log("USERNAME NOT FOUND:", username);
 
-      if (bcrypt.compareSync(password, hash)) {
-        deferred.resolve(result.body);
-      } else {
-        console.log("AUTHENTICATION FAILED");
-        deferred.resolve(false);
-      }
-    })
-    .fail(function (err){
-      if (err.body.message == 'The requested items could not be found.'){
-        console.log("USER NOT FOUND: " + username);
-        deferred.resolve(false);
-      } else {
-        deferred.reject(new Error(err));
-      }
-    });
+          deferred.resolve(false);
+        }
+        else {
+          var hash = result.password;
+
+          console.log("FOUND USER: " + result.username);
+
+          if (bcrypt.compareSync(password, hash)) {
+            deferred.resolve(result);
+          } else {
+            console.log("AUTHENTICATION FAILED");
+            deferred.resolve(false);
+          }
+        }
+
+        db.close();
+      });
+  });
 
   return deferred.promise;
-}
+};
 
 // End functions.js
